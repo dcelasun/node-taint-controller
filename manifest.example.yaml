@@ -1,0 +1,136 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: node-taint-controller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-taint-controller
+  namespace: node-taint-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-taint-controller
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: node-taint-controller-leader-election
+  namespace: node-taint-controller
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: node-taint-controller-leader-election
+  namespace: node-taint-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: node-taint-controller-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: node-taint-controller
+    namespace: node-taint-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-taint-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: node-taint-controller
+subjects:
+  - kind: ServiceAccount
+    name: node-taint-controller
+    namespace: node-taint-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-taint-controller
+  namespace: node-taint-controller
+  labels:
+    app: node-taint-controller
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: node-taint-controller
+  template:
+    metadata:
+      labels:
+        app: node-taint-controller
+    spec:
+      serviceAccountName: node-taint-controller
+      containers:
+        - name: controller
+          image: ghcr.io/dcelasun/node-taint-controller:latest
+          args:
+            - --not-ready-threshold=10m
+            - --reconcile-interval=30s
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      tolerations:
+        # Required to schedule on control plane nodes (they have NoSchedule taints)
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: node-taint-controller
+              topologyKey: kubernetes.io/hostname
