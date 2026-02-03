@@ -22,6 +22,7 @@ type NodeTaintReconciler struct {
 	client.Client
 	NotReadyThreshold time.Duration
 	ReconcileInterval time.Duration
+	Notifier          *Notifier
 
 	mu            sync.Mutex
 	NotReadySince map[string]time.Time
@@ -36,6 +37,7 @@ func (r *NodeTaintReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			r.clearTracking(req.Name)
 			return ctrl.Result{}, nil
 		}
+		r.Notifier.Error("getting node "+req.Name, err)
 		return ctrl.Result{}, err
 	}
 
@@ -48,8 +50,10 @@ func (r *NodeTaintReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if hasTaint {
 			log.Info("node is Ready, removing out-of-service taint", "node", node.Name)
 			if err := r.removeTaint(ctx, &node); err != nil {
+				r.Notifier.Error("removing taint from "+node.Name, err)
 				return ctrl.Result{}, err
 			}
+			r.Notifier.TaintRemoved(node.Name)
 		}
 		return ctrl.Result{RequeueAfter: r.ReconcileInterval}, nil
 	}
@@ -69,8 +73,10 @@ func (r *NodeTaintReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			"threshold", r.NotReadyThreshold,
 		)
 		if err := r.addTaint(ctx, &node); err != nil {
+			r.Notifier.Error("adding taint to "+node.Name, err)
 			return ctrl.Result{}, err
 		}
+		r.Notifier.TaintAdded(node.Name)
 		return ctrl.Result{RequeueAfter: r.ReconcileInterval}, nil
 	}
 

@@ -84,10 +84,15 @@ spec:
       serviceAccountName: node-taint-controller
       containers:
         - name: controller
-          image: ghcr.io/dcelasun/node-taint-controller:latest
+          image: ghcr.io/dcelasun/node-taint-controller:latest  # Or pin to a specific version
           args:
             - --not-ready-threshold=10m
             - --reconcile-interval=30s
+          env: {}
+          # Optional: Enable notifications via shoutrrr
+          # See https://containrrr.dev/shoutrrr/services/overview/ for supported services
+          # - name: SHOUTRRR_URLS
+          #   value: "slack://token@channel,telegram://token@chat"
           ports:
             - name: metrics
               containerPort: 8080

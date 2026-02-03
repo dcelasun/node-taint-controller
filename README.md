@@ -43,5 +43,23 @@ Usage of ./controller:
     	Zap Level at and above which stacktraces are captured (one of 'info', 'error', 'panic').
   -zap-time-encoding value
     	Zap time encoding (one of 'epoch', 'millis', 'nano', 'iso8601', 'rfc3339' or 'rfc3339nano'). Defaults to 'epoch'.
-
 ```
+
+## Notifications
+
+The controller supports sending notifications via [shoutrrr](https://github.com/containrrr/shoutrrr) when taints are added/removed or errors occur.
+
+Set the `SHOUTRRR_URLS` environment variable to a comma-separated list of shoutrrr URLs:
+
+```yaml
+env:
+  - name: SHOUTRRR_URLS
+    value: "slack://token@channel,telegram://token@chat"
+```
+
+Supported services include Slack, Discord, Telegram, Email, Pushover, and [many more](https://containrrr.dev/shoutrrr/services/overview/).
+
+Notifications are sent for:
+- Taint added (node marked out-of-service)
+- Taint removed (node back in service)
+- Errors during reconciliation

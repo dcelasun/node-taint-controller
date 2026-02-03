@@ -66,11 +66,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	notifier := NewNotifierFromEnv()
+	if notifier != nil {
+		log.Info("notifications enabled via SHOUTRRR_URLS")
+	}
+
 	reconciler := &NodeTaintReconciler{
 		Client:            mgr.GetClient(),
 		NotReadyThreshold: notReadyThreshold,
 		ReconcileInterval: reconcileInterval,
 		NotReadySince:     make(map[string]time.Time),
+		Notifier:          notifier,
 	}
 
 	if err := ctrl.NewControllerManagedBy(mgr).
